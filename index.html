@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>P4G True Screen Calendar & Weather</title>
+    <style>
+        body {
+            margin: 0;
+            background: #0d0d0d;
+            font-family: 'Impact', 'Arial Black', sans-serif;
+            overflow: hidden;
+            width: 100vw;
+            height: 100vh;
+            color: #555555;
+        }
+
+
+        .yellow-stripe {
+            position: absolute;
+            left: 12%;
+            top: 0;
+            width: 240px;
+            height: 100%;
+            background-color: #FFEB00;
+            box-shadow: 10px 0 30px rgba(0,0,0,0.7);
+            z-index: 1;
+        }
+
+
+        .timeline-container {
+            position: absolute;
+            top: 6%;
+            left: calc(12% - 180px);
+            display: flex;
+            justify-content: flex-start;
+            z-index: 2;
+        }
+
+
+        .day-column {
+            width: 180px;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-transform: uppercase;
+            font-style: italic;
+            transition: all 0.3s ease;
+        }
+
+        .day-name {
+            font-size: 2rem;
+            letter-spacing: 2px;
+            margin-bottom: -5px;
+        }
+
+        .day-number {
+            font-size: 5.5rem;
+            font-weight: 900;
+            line-height: 1;
+        }
+
+
+        .weather-box {
+            width: 80px;
+            height: 80px;
+            background: #1a1a1a;
+            border: 3px solid #333;
+            margin-top: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2.5rem;
+            border-radius: 8px;
+            font-style: normal;
+        }
+
+
+        .day-column.active {
+            color: #000000 !important;
+            width: 240px;
+        }
+
+        .day-column.active .weather-box {
+            background: #000000;
+            border: 3px solid #000000;
+            color: #FFEB00;
+        }
+
+
+        .month-display {
+            position: absolute;
+            bottom: 8%;
+            left: 12%;
+            width: 240px;
+            text-align: center;
+            z-index: 2;
+        }
+
+
+        .month-number {
+            font-size: 16rem;
+            font-weight: 900;
+            color: #000000;
+            line-height: 0.7;
+            transform: skewX(-22deg) rotate(-5deg) scaleY(1.3); /* Aggressive slanting & rotation */
+            display: inline-block;
+        }
+
+        .year-number {
+            font-size: 3.5rem;
+            color: #000000;
+            margin-top: 25px;
+            letter-spacing: 4px;
+        }
+
+
+
+        .day-column[data-weekday="SAT"] {
+            color: #2b74db;
+        }
+
+        .day-column[data-weekday="SUN"] {
+            color: #cc2929;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="yellow-stripe"></div>
+
+    <div class="timeline-container" id="timeline">
+
+    </div>
+
+    <div class="month-display">
+        <div class="month-number" id="big-month">4</div>
+        <div class="year-number" id="big-year">2011</div>
+    </div>
+
+    <script>
+
+        function getWeatherIcon(code) {
+            if (code === 0) return '☀️';
+            if (code >= 1 && code <= 3) return '⛅';
+            if (code >= 45 && code <= 48) return '🌫️';
+            if (code >= 51 && code <= 67) return '🌧️';
+            if (code >= 71 && code <= 77) return '❄️';
+            if (code >= 80 && code <= 82) return '⛈️';
+            if (code >= 95 && code <= 99) return '⚡';
+            return '☀️';
+        }
+
+        async function fetchWeeklyWeather() {
+            try {
+
+                const ipResponse = await fetch('https://ipapi.co/json/');
+                const locationData = await ipResponse.json();
+                const lat = locationData.latitude || 40.7128;
+                const lon = locationData.longitude || -74.0060;
+
+
+                const weatherResponse = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=weathercode&timezone=auto`);
+                const weatherData = await weatherResponse.json();
+
+                return weatherData.daily.weathercode;
+            } catch (error) {
+                console.log("Weather forecast failed, defaulting", error);
+                return [0, 0, 0, 0, 0, 0, 0];
+            }
+        }
+
+        async function buildP4GCalendar() {
+            const now = new Date();
+            const daysOfWeek = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+
+            document.getElementById('big-month').innerText = now.getMonth() + 1;
+            document.getElementById('big-year').innerText = now.getFullYear();
+
+
+            const weeklyCodes = await fetchWeeklyWeather();
+
+            const timeline = document.getElementById('timeline');
+            timeline.innerHTML = '';
+
+
+            for (let i = -1; i <= 12; i++) {
+                const targetDate = new Date();
+                targetDate.setDate(now.getDate() + i);
+
+                const weekdayName = daysOfWeek[targetDate.getDay()];
+
+                const dayCol = document.createElement('div');
+                dayCol.className = 'day-column';
+                dayCol.setAttribute('data-weekday', weekdayName);
+                if (i === 0) dayCol.classList.add('active');
+
+                const dName = document.createElement('div');
+                dName.className = 'day-name';
+                dName.innerText = weekdayName;
+
+                const dNum = document.createElement('div');
+                dNum.className = 'day-number';
+                dNum.innerText = targetDate.getDate();
+
+                const wBox = document.createElement('div');
+                wBox.className = 'weather-box';
+
+                if (i < 0) {
+                    wBox.innerText = '☀️';
+                    wBox.style.opacity = '0.15';
+                    wBox.style.filter = 'grayscale(100%)';
+                } else {
+                    wBox.innerText = getWeatherIcon(weeklyCodes[i]);
+
+
+                    if (i > 0) {
+                        wBox.style.opacity = '0.4';
+                    }
+                }
+
+                dayCol.appendChild(dName);
+                dayCol.appendChild(dNum);
+                dayCol.appendChild(wBox);
+
+                timeline.appendChild(dayCol);
+            }
+        }
+
+        buildP4GCalendar();
+
+        setInterval(buildP4GCalendar, 900000);
+    </script>
+</body>
+</html>
